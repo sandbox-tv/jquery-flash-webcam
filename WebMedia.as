@@ -11,10 +11,9 @@ package {
         [Bindable] private var nc:NetConnection;
         [Bindable] private var ns:NetStream;
         private var serverUrl:String;
-        private var remoteVideo:Video;
-        private var currentVideo:Video;
-        private var playVideo:Video;
+        private var video:Video;
         private var cam:Camera;
+        private var mic:Microphone;
         private var camStatus:String = 'None';
         private var movName:String;
         private var videoWidth:int;
@@ -29,7 +28,21 @@ package {
             debug('server ' + serverUrl);
             debug('Added');
 
-            rtmpConnect(serverUrl);
+            videoWidth = ExternalInterface.call('getWidth');
+            videoHeight = ExternalInterface.call('getHeight');
+
+            startPoll();
+            initVideo(videoWidth, videoHeight);
+            initCamera();
+            initMic();
+            video.attachCamera(cam);
+            addChild(video);
+        }
+
+        private function startPoll():void {
+            var statusTimer:Timer = new Timer(330, 0);
+            statusTimer.addEventListener(TimerEvent.TIMER, pollStatus);
+            statusTimer.start();
         }
 
         private function rtmpConnect(url:String):void {
@@ -64,28 +77,12 @@ package {
             }
         }
 
-        private function play(name:String):void {
-            if (nc != null && nc.connected) {
-                ns = new NetStream(nc);
-                ns.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler, false, 0, true);
-                ns.addEventListener(IOErrorEvent.IO_ERROR, streamErrorHandler, false, 0, true);
-                ns.addEventListener(AsyncErrorEvent.ASYNC_ERROR, streamErrorHandler, false, 0, true);
-                ns.client = {};
-
-                ns.play(name);
-                playVideo.attachNetStream(ns);
-                addChild(playVideo);
-                currentVideo = playVideo;
-                debug('Playing ' + name);
-            }
-        }
-
         private function closeStream(current:Video):void {
             if (ns != null) {
                 ns.close();
                 ns = null;
             }
-            currentVideo.clear();
+            video.clear();
             removeChild(current);
         }
 
@@ -95,13 +92,6 @@ package {
             case 'NetConnection.Connect.Success':
                 debug('connected ' + nc.connected);
 
-                videoWidth = ExternalInterface.call('getWidth');
-                videoHeight = ExternalInterface.call('getHeight');
-                initVideo(videoWidth, videoHeight);
-
-                var statusTimer:Timer = new Timer(330, 0);
-                statusTimer.addEventListener(TimerEvent.TIMER, pollStatus);
-                statusTimer.start();
                 ExternalInterface.call('serverConnected');
                 break;
             case 'NetConnection.Connect.Failed':
@@ -112,7 +102,7 @@ package {
                 break;
             case 'NetStream.Play.Stop':
                 ExternalInterface.call('playbackEnded');
-                closeStream(currentVideo);
+                closeStream(video);
                 break;
             }
         }
@@ -132,40 +122,47 @@ package {
             ExternalInterface.call('console.log', msg);
         }
 
-        private function initRecord():void {
-            ns = new NetStream(nc);
-            ns.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler, false, 0, true);
-            ns.addEventListener(IOErrorEvent.IO_ERROR, streamErrorHandler, false, 0, true);
-            ns.addEventListener(AsyncErrorEvent.ASYNC_ERROR, streamErrorHandler, false, 0, true);
+        private function initCamera():void {
+            debug('initCamera()');
+            debug('updated');
             cam = Camera.getCamera();
-            cam.setMode(videoWidth, videoHeight, 25, false);
+            cam.setMode(8192, 6144, 30);
             cam.setQuality(0, 100);
+            cam.setKeyFrameInterval(2);
 
             debug('width: ' + cam.width);
             debug('height: ' + cam.height);
             debug('camera: ' + cam.name);
             debug('status: ' + camStatus);
+        }
 
-            ns.attachCamera(Camera.getCamera());
-            ns.attachAudio(Microphone.getMicrophone(-1));
-            remoteVideo.attachCamera(Camera.getCamera());
-            addChild(remoteVideo);
-            currentVideo = remoteVideo;
+        private function initRecord():void {
+            debug('initRecord()');
+            rtmpConnect(serverUrl);
 
-            var newStatus:String = ExternalInterface.call('getStatus');
+            ns = new NetStream(nc);
+            ns.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler, false, 0, true);
+            ns.addEventListener(IOErrorEvent.IO_ERROR, streamErrorHandler, false, 0, true);
+            ns.addEventListener(AsyncErrorEvent.ASYNC_ERROR, streamErrorHandler, false, 0, true);
+
+            ns.attachCamera(cam);
+            ns.attachAudio(mic);
 
             ExternalInterface.addCallback('initFlash', initVideo);
             ExternalInterface.addCallback('serverConnect', rtmpConnect);
             ExternalInterface.addCallback('startRecording', publish);
         }
 
+        private function initMic():void {
+            mic = Microphone.getMicrophone();
+            mic.rate = 22;
+        }
+
         private function initVideo(w:int, h:int):void {
-            remoteVideo = new Video(w, h);
-            remoteVideo.width = w;
-            remoteVideo.height = h;
-            playVideo = new Video(w, h);
-            playVideo.width = w;
-            playVideo.height = h;
+            debug('initVideo()');
+            video = new Video();
+            video.smoothing = true;
+            video.scaleX = video.scaleY = 1.6;
         }
 
         private function pollStatus(event:TimerEvent):void {
@@ -174,16 +171,13 @@ package {
                 debug('status changed to: ' + newStatus);
                 camStatus = newStatus;
                 if (newStatus == 'recording') {
+                    debug('calling initRecord()');
                     initRecord();
                     movName = ExternalInterface.call('movieName');
                     publish(movName, true);
                 }
                 else if (newStatus == 'stop') {
-                    closeStream(currentVideo);
-                }
-                else if (newStatus == 'play') {
-                    movName = ExternalInterface.call('movieName');
-                    play(movName);
+                    closeStream(video);
                 }
             }
         }

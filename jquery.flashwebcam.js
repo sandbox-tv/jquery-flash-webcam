@@ -36,13 +36,15 @@
 
         function populateObject(data) {
             var objectHtml = '<object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" \
-                                id="' + data.id + '" width="' + data.width + '" height="' + data.height + '" \
+                                id="' + data.id + '" \
                                 codebase="http://fpdownload.macromedia.com/get/flashplayer/current/swflash.cab">\
                                     <param name="movie" value="' + data.swfLocation + '" />\
                                     <param name="quality" value="high" />\
                                     <param name="allowScriptAccess" value="always" />\
+                                    <param name="scale" value="default" />\
                                     <embed src="' + data.swfLocation + '" quality="high" bgcolor="#000000" \
                                         width="' + data.width + '" height="' + data.height + '" \
+                                        scale="default" \
                                         name="webmediacapture" align="middle" \
                                         play="true" \
                                         loop="false" \
