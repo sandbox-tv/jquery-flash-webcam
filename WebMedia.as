@@ -31,6 +31,7 @@ package {
             videoWidth = ExternalInterface.call('getWidth');
             videoHeight = ExternalInterface.call('getHeight');
 
+            rtmpConnect(serverUrl);
             startPoll();
             initVideo(videoWidth, videoHeight);
             initCamera();
@@ -126,7 +127,7 @@ package {
             debug('initCamera()');
             debug('updated');
             cam = Camera.getCamera();
-            cam.setMode(8192, 6144, 30);
+            cam.setMode(1024, 768, 30, false);
             cam.setQuality(0, 100);
             cam.setKeyFrameInterval(2);
 
@@ -138,7 +139,6 @@ package {
 
         private function initRecord():void {
             debug('initRecord()');
-            rtmpConnect(serverUrl);
 
             ns = new NetStream(nc);
             ns.addEventListener(NetStatusEvent.NET_STATUS, netStatusHandler, false, 0, true);
